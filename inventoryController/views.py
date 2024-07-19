@@ -753,8 +753,7 @@ def getInstockByPage(request: HttpRequest):
     query_filter = body['filter']
     fil = {}
     fil = unpackInstockFilter(query_filter, fil)
-    print(fil)
-
+    
     # try:
     arr = []
     skip = body['page'] * body['itemsPerPage']
@@ -1834,7 +1833,7 @@ def getRemainingInfoByLot(request: HttpRequest):
     jointArr = remaining['unsoldItems'] + remaining['soldItems']
     for item in jointArr:
         if item['sku'] in auctionSkuArr:
-            print(item['sku'])
+            # print(item['sku'])
             repetitive.append(item['sku'])
     
     # check other unsold items???
@@ -1842,10 +1841,10 @@ def getRemainingInfoByLot(request: HttpRequest):
     # get count
     unsold = len(remaining['unsoldItems'])
     count = unsold if includeSoldButInstock == False else (unsold + soldButInstockCount)
-    print(unsold)
-    print(soldButInstockCount)
-    print('===')
-    print(count)
+    # print(unsold)
+    # print(soldButInstockCount)
+    # print('===')
+    # print(count)
     return Response({ 'totalCount': count, 'unsold': unsold, 'soldButInstock': soldButInstockCount, 'existInAuction': repetitive}, status.HTTP_200_OK)
 
 @api_view(['GET'])
@@ -1930,7 +1929,7 @@ def importUnsoldItems(request: HttpRequest):
     # if no unsold items return not found
     if len(remainingUnsoldItemsArr) < 1:
         return Response(f'No Unsold Items Found for Lot {remainingLotNumber}', status.HTTP_404_NOT_FOUND)
-    print('unsold Items' + str(len(remainingUnsoldItemsArr)))
+    # print('unsold Items' + str(len(remainingUnsoldItemsArr)))
     
     # if passed flag equals to true
     # process sold items with more than 0 quantity instock after deduction
@@ -2200,7 +2199,7 @@ def scrapePriceBySkuHomeDepot(request: HttpRequest):
     start_index = target['link'].find("https://")
     if start_index != -1:
         url = target['link'][start_index:]
-        print("Extracted URL:", url)
+        # print("Extracted URL:", url)
 
     # generate header with random user agent
     headers = {
@@ -2332,7 +2331,7 @@ def sendQACSV(request: HttpRequest):
         res = qa_collection.find_one({'sku': int(data['sku'][index])})
         if res:
             existedSKU.append(data['sku'][index])
-            print(f'{int(data['sku'][index])} exist in DB')
+            # print(f'{int(data['sku'][index])} exist in DB')
             continue
         else:
             print(f'{int(data['sku'][index])}')

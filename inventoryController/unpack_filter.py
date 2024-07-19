@@ -1,23 +1,57 @@
-from CCPDController.utils import sanitizeString, sanitizeNumber, full_iso_format
-from pprint import pprint 
-from datetime import datetime
+from CCPDController.utils import (
+    sanitizeString, 
+    sanitizeNumber, 
+    full_iso_format,
+    inv_iso_format
+)
+from datetime import datetime, timedelta
 
-
-def unpackTimeRange(query_filter, fil):
+# 
+def unpackTimeRange(query_filter, fil, query_key, filter_name, t_format="%Y-%m-%dT%H:%M:%S.000Z"):
     # time range filter
-    if 'timeRangeFilter' in query_filter:
-        timeRange = query_filter['timeRangeFilter']
+    if query_key in query_filter:
+        timeRange = query_filter[query_key]
+        print(f'time range: {timeRange}')
+
+        selectValue = timeRange['selectValue'] if 'selectValue' in timeRange else ''
+        if selectValue == 'today' or selectValue == 'yesterday':
+            # time range selection dropdown value from panel
+            if selectValue == 'today':
+                fil[filter_name] = {
+                    '$gte': datetime.now().replace(hour=0, minute=0, second=0).strftime(t_format),
+                    '$lt': datetime.now().replace(hour=23, minute=59, second=59).strftime(t_format)
+                }
+            elif selectValue == 'yesterday':
+                fil[filter_name] = {
+                    '$gte': (datetime.now() - timedelta(1)).replace(hour=0, minute=0, second=0).strftime(t_format),
+                    '$lt': (datetime.now() - timedelta(1)).replace(hour=23, minute=59, second=59).strftime(t_format)
+                }
+            # elif selectValue == 'thisWeek':
+            #     fil[filter_name] = {
+            #         '$gte': (datetime.now() - timedelta(7)).replace(hour=0, minute=0, second=0).strftime(t_format),
+            #         '$lt': datetime.now().replace(hour=23, minute=59, second=59).strftime(t_format),
+            #     }
+            # elif selectValue == 'thisMonth':
+            #     fil[filter_name] = {
+            #         '$gte': datetime.now().replace(day=1, hour=0, minute=0, second=0).strftime(t_format),
+            #         '$lt': datetime.now().replace(hour=23, minute=59, second=59).strftime(t_format),
+            #     }
+        
         if ('from' in timeRange and timeRange['from'] != '') or ('to' in timeRange and timeRange['to'] != ''):
             f = sanitizeString(timeRange['from']) if 'from' in timeRange else ''
 
+            if f != '':
+                f = datetime.strptime(f, full_iso_format).strftime(t_format)
+                
             # selected only 1 day so range is from 0000 to 2359 of that day
             if 'to' not in timeRange and 'from' in timeRange:
-                t = datetime.strptime(f, full_iso_format).replace(hour=23, minute=59, second=59).strftime(full_iso_format)
+                t = datetime.strptime(f, t_format).replace(hour=23, minute=59, second=59).strftime(t_format)
+            # both to and from are in filter
             elif 'to' in timeRange and 'from' in timeRange:
-                t = datetime.strptime(sanitizeString(timeRange['to']), full_iso_format).replace(hour=23, minute=59, second=59).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-
+                t = datetime.strptime(sanitizeString(timeRange['to']), full_iso_format).replace(hour=23, minute=59, second=59).strftime(t_format)
+            
             # populate time filter in fil object
-            fil['time'] = {
+            fil[filter_name] = {
                 '$gte': f,
                 '$lt': t
             }
@@ -81,7 +115,7 @@ def unpackQARecordFilter(query_filter, fil):
     
     unpackMarketPlaceFilter(query_filter, fil)
     unpackPlatformFilter(query_filter, fil)
-    unpackTimeRange(query_filter, fil)
+    unpackTimeRange(query_filter, fil, 'timeRangeFilter', 'time')
     unpackSkuFilter(query_filter, fil)
     unpackShelfLocation(query_filter, fil)
     unpackQAFilter(query_filter, fil, 'ownerName')
@@ -98,6 +132,7 @@ def unpackQARecordFilter(query_filter, fil):
     # remove $and if no filter applied
     if fil['$and'] == []:
         del fil['$and']
+    print(f'unpack qa filter: {fil}')
     return fil
 
 # unpack instock inventory filter object passed in by frontend
@@ -155,11 +190,13 @@ def unpackInstockFilter(query_filter, fil):
     unpackPlatformFilter(query_filter, fil)
     unpackMarketPlaceFilter(query_filter, fil)
     unpackShelfLocation(query_filter, fil)
-    unpackTimeRange(query_filter, fil)
+    unpackTimeRange(query_filter, fil, 'timeRangeFilter', 'time', t_format=inv_iso_format)
+    unpackTimeRange(query_filter, fil, 'qaTime', 'qaTime', t_format=inv_iso_format)
     unpackQAFilter(query_filter, fil, 'qaName')
     
     # remove $and if no filter applied
     # $and cannot be empty
     if fil['$and'] == []:
         del fil['$and']
+    print(f'unpack instock filter: {fil}')
     return fil
