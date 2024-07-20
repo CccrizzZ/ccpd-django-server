@@ -80,6 +80,7 @@ user_time_format = "%b %-d %Y"
 
 # instock inventory format
 inv_iso_format = '%Y-%m-%d %H:%M:%S'
+qa_time_format = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 # iso format
 # for QA inventory, table filters,
@@ -130,7 +131,7 @@ def getIsoFormatNow():
 def getIsoFormatInv():
     eastern_timezone = pytz.timezone('America/Toronto')
     current_time = datetime.now(eastern_timezone)
-    return current_time.strftime(inv_iso_format)
+    return current_time.strftime(qa_time_format)
 
 # check if body contains valid user registration information
 def checkBody(body):
@@ -287,7 +288,7 @@ def populateSetData(body, key, setData, sanitizationMethod):
 # for daily QA count chart
 def convertToAmountPerDayData(arr):
     # try:
-    formatted_dates = [datetime.strptime(item['time'], inv_iso_format).strftime('%b %d') for item in arr]
+    formatted_dates = [datetime.strptime(item['time'], qa_time_format).strftime('%b %d') for item in arr]
     date_counts = Counter(formatted_dates)
     # except:
     #     formatted_dates = [datetime.strptime(item['time'], '%Y-%m-%d %H:%M:%S').strftime('%b %d') for item in arr]

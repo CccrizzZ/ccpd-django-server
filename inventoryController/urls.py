@@ -52,5 +52,5 @@ urlpatterns = [
     path("sendInstockCSV", views.sendInstockCSV, name="sendInstockCSV"),
     path("sendQACSV", views.sendQACSV, name="sendQACSV"),
     path("fillPlatform", views.fillPlatform, name="fillPlatform"),
-    path("fixAuctionRecord", views.fixAuctionRecord, name="fixAuctionRecord"),
+    path("fixInstockTime", views.fixInstockTime, name="fixInstockTime"),
 ]

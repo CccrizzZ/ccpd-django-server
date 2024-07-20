@@ -3,8 +3,8 @@ import os
 import pprint
 import re
 from urllib import response
-from uu import decode
 from django.http import HttpRequest
+import pytz
 import requests
 from scrapy.http import HtmlResponse
 from datetime import datetime, timedelta
@@ -29,6 +29,7 @@ from CCPDController.utils import (
     findObjectInArray,
     processInstock,
     inv_iso_format,
+    qa_time_format,
 )
 from azure.storage.blob import BlobServiceClient
 from azure.core.exceptions import ResourceExistsError
@@ -42,6 +43,7 @@ from collections import Counter
 from CCPDController.chat_gpt_utils import generate_description, generate_title
 from inventoryController.unpack_filter import unpackInstockFilter
 import pymongo
+from pymongo import UpdateOne
 import pandas as pd
 from bs4 import BeautifulSoup
 import random
@@ -654,6 +656,7 @@ def getAllShelfSheet(request: HttpRequest):
     csv = resData.to_csv(index=False)
     response = Response(csv, status=status.HTTP_200_OK, content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="shelfSheet.csv"'
+    del resData
     return response
 
 # if item was returned, a new instock record will be created, old record remains out-of-stock
@@ -903,51 +906,50 @@ def getAllShelfLocations(request: HttpRequest):
 @api_view(['POST'])
 @permission_classes([IsAdminPermission])
 def createInstockInventory(request: HttpRequest):
-    try:
-        body = decodeJSON(request.body)
-        sku = sanitizeNumber(body['sku'])
-        res = instock_collection.find_one({'sku': sku})
-        if res:
-            return Response(f'Inventory {sku} Already Instock', status.HTTP_409_CONFLICT)
-        msrp = 0
-        if 'msrp' in body:
-            msrp = sanitizeNumber(float(body['msrp']))
-        shelfLocation = sanitizeString(body['shelfLocation'])
-        condition = sanitizeString(body['condition'])
-        platform = sanitizeString(body['platform'])
-        marketplace = sanitizeString(body['marketplace']) if 'marketplace' in body else 'Hibid'
-        comment = sanitizeString(body['comment'])
-        lead = sanitizeString(body['lead'])
-        description = sanitizeString(body['description'])
-        url = sanitizeString(body['url'])
-        quantityInstock = sanitizeNumber(body['quantityInstock'])
-        quantitySold = sanitizeNumber(body['quantitySold'])
-        adminName = sanitizeString(body['adminName'])
-        qaName = sanitizeString(body['qaName'])
-        qaTime = sanitizeString(body['qaTime'])
-        qdt = datetime.fromisoformat(qaTime)
-        time = getIsoFormatInv()
-        
-        newInv: InstockInventory = InstockInventory(
-            sku=sku,
-            time=time,
-            qaTime=qdt.strftime(inv_iso_format),
-            shelfLocation=shelfLocation,
-            condition=condition,
-            comment=comment,
-            lead=lead,
-            description=description,
-            url=url,
-            marketplace=marketplace,
-            platform=platform,
-            adminName=adminName,
-            qaName=qaName,
-            quantityInstock=quantityInstock,
-            quantitySold=quantitySold,
-            msrp=msrp
-        )
-    except:
-        return Response('Invalid Body', status.HTTP_400_BAD_REQUEST)
+    # try:
+    body = decodeJSON(request.body)
+    sku = sanitizeNumber(body['sku'])
+    res = instock_collection.find_one({'sku': sku})
+    if res:
+        return Response(f'Inventory {sku} Already Instock', status.HTTP_409_CONFLICT)
+    msrp = 0
+    if 'msrp' in body:
+        msrp = sanitizeNumber(float(body['msrp']))
+    shelfLocation = sanitizeString(body['shelfLocation'])
+    condition = sanitizeString(body['condition'])
+    platform = sanitizeString(body['platform'])
+    marketplace = sanitizeString(body['marketplace']) if 'marketplace' in body else 'Hibid'
+    comment = sanitizeString(body['comment'])
+    lead = sanitizeString(body['lead'])
+    description = sanitizeString(body['description'])
+    url = sanitizeString(body['url'])
+    quantityInstock = sanitizeNumber(body['quantityInstock'])
+    quantitySold = sanitizeNumber(body['quantitySold'])
+    adminName = sanitizeString(body['adminName'])
+    qaName = sanitizeString(body['qaName'])
+    qaTime = datetime.strptime(sanitizeString(body['qaTime']), "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+    time = getIsoFormatInv()
+    
+    newInv: InstockInventory = InstockInventory(
+        sku=sku,
+        time=time,
+        qaTime=qaTime,
+        shelfLocation=shelfLocation,
+        condition=condition,
+        comment=comment,
+        lead=lead,
+        description=description,
+        url=url,
+        marketplace=marketplace,
+        platform=platform,
+        adminName=adminName,
+        qaName=qaName,
+        quantityInstock=quantityInstock,
+        quantitySold=quantitySold,
+        msrp=msrp
+    )
+    # except:
+    #     return Response('Invalid Body', status.HTTP_400_BAD_REQUEST)
 
     instock_collection.insert_one(newInv.__dict__)
 
@@ -1528,7 +1530,10 @@ def createRemainingRecord(request: HttpRequest):
                     'startBid': sanitizeNumber(float(item['startBid'])) if 'startBid' in item else 0,
                 }
                 unsoldItems.append(remainingItem)
-
+    
+    # release memory
+    del df
+    
     # make auction sku array
     auctionSkuList = [item['sku'] for item in targetAuctionItemsArr]
     
@@ -2364,6 +2369,7 @@ def sendQACSV(request: HttpRequest):
 
     # set output copy path
     filtered_df.to_csv(path_or_buf='./output.csv', encoding='utf-8', index=False)
+    del filtered_df
     return Response(str(data), status.HTTP_200_OK)
 
 @api_view(['POST'])
@@ -2404,6 +2410,7 @@ def fillPlatform(request: HttpRequest):
 
 # for database fixing
 @api_view(['POST'])
+@permission_classes([IsAdminPermission])
 def fixAuctionRecord(request: HttpRequest):
     # auction = auction_collection.find_one(
     #     {'lot': 212},
@@ -2411,125 +2418,41 @@ def fixAuctionRecord(request: HttpRequest):
     # )
 
     return Response('Fixed', status.HTTP_200_OK)
-    
-    # trying to fix lot 213.01
-    index = 2606
-    lot213Lot = []
-    for x in range(len(lot213Sku)):
-        lot213Lot.append(index)
-        index += 1
-    print(lot213Lot)
-    # return Response('succeess', status.HTTP_200_OK)
 
-    lotObjArr = []
-    for i in lot213Lot:
-        lotObjArr.append({'lot': i})
-    
-    columns = [
-        'Lot',
-        'Lead',        # original lead from recording
-        'Description', # original description from recording
-        'MSRP:$',      
-        'Price',       # original scraped msrp  
-        'Location',    # original shelfLocation
-        'item',
-        'vendor',
-        'start bid',
-        'reserve',
-        'Est',
-    ]
-
-    # get all instock inventory
-    auctionItemArr = []
-    for sku in lot213Sku:
-        res = instock_collection.find_one(
-            {'sku': sku}, 
-            { '_id': 0, 'sku': 1, 'lead': 1, 'msrp': 1, 'description': 1, 'shelfLocation': 1, 'condition': 1, 'quantityInstock': 1 }
-        )
-        auctionItemArr.append(res)
-    
-    # zip lot number and item array
-    itemsArr = []
-    itemsArr = processInstock(itemsArr, auctionItemArr, duplicate=False)
-    itemsArr = [{ **d1, **d2 } for d1, d2 in zip(lotObjArr, itemsArr)]
-    # pprint.pprint(itemsArr)
-    
-    auction_collection.update_one(
-        {'lot': 213.02},
-        {'$set': {'itemsArr': itemsArr}}
+@api_view(['POST'])
+@permission_classes([IsAdminPermission])
+def fixInstockTime(request: HttpRequest):
+    # return Response('Fixed', status.HTTP_200_OK)
+    res = instock_collection.find(
+        {},
+        { '_id': 1, 'time': 1 }
     )
     
-    return Response('Fixed', status.HTTP_200_OK)
-    # make image array and joint it with item array
-    imageArrData = []
-    itemsArrData = []
-    image_container_client = getImageContainerClient()
-    for item in itemsArr:
-        row = makeCSVRowFromItem(item)
-        itemsArrData.append(row)
-        # build blob filter tag 
-        sku = f"sku = '{item['sku']}'" 
-        # get blob list by tag
-        blob_list = image_container_client.find_blobs_by_tags(filter_expression=sku)
-        # all images names by auction lot 
-        images = []
-        # get images count per item
-        imageCount = sum(1 for _ in blob_list)
-        # imageCount = 0
-        # for _ in blob_list:
-        #     imageCount += 1
-        # item lot number in auction
-        itemLot = sanitizeNumber(item['lot'])
-        for x in range(imageCount):
-            name = f"{itemLot}_{x + 1}.jpg"  # image name starts with lot_1.jpg
-            images.append(name)
-        imageArrData.append(images)
-    image_container_client.close()
-    
-    # construct data frame for top row + items 
-    item_df = pd.DataFrame(
-        data=itemsArrData,
-        columns=columns
-    )
-    
-    # create df for images
-    image_df = pd.DataFrame(imageArrData)
-    
-    # add empty column head for image columns to make space at the end
-    col = len(image_df.columns)
-    for x in range(col):
-        columns.append('')
-    
-    # outer joins the image part of csv
-    joined_df = item_df.join(image_df, how='outer')
-    
-    # export csv
-    csv = joined_df.to_csv(index=False, header=columns)
-    response = Response(csv, status=status.HTTP_200_OK, content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="shelfSheet.csv"'
-    return response
-    return Response('fixed', status.HTTP_200_OK)
-    # auctionArr = []
-    # for item in auction['itemsArr']:
-    #     auctionArr.append(item)
-    #     # print(item['sku'])
-    #     sku = item['sku']
-    #     resItem = instock_collection.find_one({'sku': item['sku']})
-    #     # if (resItem['quantitySold'] > 0):
-    #     #     res = instock_collection.update_one(
-    #     #         {'sku': item['sku']},
-    #     #         {
-    #     #             '$inc': {
-    #     #                 'quantityInstock': 1,
-    #     #                 'quantitySold': -1
-    #     #             }
-    #     #         }
-    #     #     )
-    #     #     print(f'{resItem['sku']} {resItem}')
+    operations = []
+    eastern_timezone = pytz.timezone('America/New_York')
+    utc_timezone = pytz.timezone('UTC')
+    for item in res:
+        if 'time' not in item:
+            continue
+        time = item['time']
         
-    #     # if resItem['quantityInstock'] > 1 or resItem['quantityInstock'] < 0:
-    #     print(f'{sku} - instock: {resItem['quantityInstock']}')
-    #     print(f'{sku} - sold: {resItem['quantitySold']}')
-    
-    # return Response('', status.HTTP_200_OK)
-    
+        # convert string time into datetime object
+        try:
+            converted_time = datetime.strptime(time, "%Y-%m-%dT%H:%M:%S.000Z")
+        except:
+            print('format error: ' + item['time'])
+            continue
+            # try:
+            #     converted_time = datetime.strptime(time, inv_iso_format)
+            #     # print(converted_time.strftime("%Y-%m-%dT%H:%M:%S.%f%z"))
+            # except:
+            #     continue
+            #     # converted_time = datetime.strptime(time, qa_time_format)
+        
+        date_obj = converted_time.replace(tzinfo=utc_timezone) + timedelta(hours=4)
+        est_obj = date_obj.astimezone(eastern_timezone).strftime("%Y-%m-%dT%H:%M:%S.%f%Z")
+        print(f'{item['time']} -> {est_obj}')
+        operations.append(UpdateOne({"_id": item['_id']}, {"$set": {"time": est_obj}}))
+
+    # instock_collection.bulk_write(operations)
+    return Response('Fixed', status.HTTP_200_OK)

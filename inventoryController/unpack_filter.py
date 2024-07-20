@@ -190,8 +190,8 @@ def unpackInstockFilter(query_filter, fil):
     unpackPlatformFilter(query_filter, fil)
     unpackMarketPlaceFilter(query_filter, fil)
     unpackShelfLocation(query_filter, fil)
-    unpackTimeRange(query_filter, fil, 'timeRangeFilter', 'time', t_format=inv_iso_format)
-    unpackTimeRange(query_filter, fil, 'qaTime', 'qaTime', t_format=inv_iso_format)
+    unpackTimeRange(query_filter, fil, 'timeRangeFilter', 'time')
+    unpackTimeRange(query_filter, fil, 'qaTime', 'qaTime')
     unpackQAFilter(query_filter, fil, 'qaName')
     
     # remove $and if no filter applied
