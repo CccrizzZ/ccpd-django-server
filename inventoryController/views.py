@@ -754,6 +754,12 @@ def getInstockByPage(request: HttpRequest):
     sanitizeNumber(body['page'])
     sanitizeNumber(body['itemsPerPage'])
     query_filter = body['filter']
+    
+    # unpack sorting method
+    sorting_method = body['sorting']
+    time_sorting_method = pymongo.ASCENDING if sorting_method['time'] else pymongo.DESCENDING
+    
+    # unpack inventory query filter
     fil = {}
     fil = unpackInstockFilter(query_filter, fil)
     
@@ -764,11 +770,11 @@ def getInstockByPage(request: HttpRequest):
     # see if filter is applied to determine the query
     if fil == {}:
         cursor = instock_collection.find()
-        query = cursor.sort('time', pymongo.DESCENDING).skip(skip).limit(body['itemsPerPage'])
+        query = cursor.sort('time', time_sorting_method).skip(skip).limit(body['itemsPerPage'])
         count = instock_collection.count_documents({})
     else:
         cursor = instock_collection.find(fil)
-        query = cursor.sort('time', pymongo.DESCENDING).skip(skip).limit(body['itemsPerPage'])
+        query = cursor.sort('time', time_sorting_method).skip(skip).limit(body['itemsPerPage'])
         count = instock_collection.count_documents(fil)
     
     # get rid of object id
@@ -1207,6 +1213,7 @@ def createAuctionRecord(request: HttpRequest):
     maxMSRP = 0
     minSku = 0
     maxSku = 0
+    timeRange = ''
     
     # unpack body 
     if 'title' in body:
@@ -1214,17 +1221,23 @@ def createAuctionRecord(request: HttpRequest):
     if 'description' in body:
         description = sanitizeString(body['description'])
     if 'filter' in body:
-        if 'minMSRP' in body['filter']:
-            minMSRP = sanitizeNumber(body['filter']['minMSRP'])
-        if 'maxMSRP' in body['filter']:
-            maxMSRP = sanitizeNumber(body['filter']['maxMSRP'])
-        if 'sku' in body['filter']:
-            if 'gte' in body['filter']['sku'] and body['filter']['sku']['gte'] != '':
-                minSku = sanitizeNumber(int(body['filter']['sku']['gte']))
-            if 'lte' in body['filter']['sku'] and body['filter']['sku']['lte'] != '':
-                maxSku = sanitizeNumber(int(body['filter']['sku']['lte']))
+        fil_body = body['filter']
+        if 'timeRangeFilter' in fil_body:
+            tr = fil_body['timeRangeFilter']
+            timeRange += tr['from'] if 'from' in tr else ''
+            timeRange += ' - ' if timeRange != '' else ''
+            timeRange += tr['to'] if 'to' in tr else ''
+        if 'minMSRP' in fil_body:
+            minMSRP = sanitizeNumber(fil_body['minMSRP'])
+        if 'maxMSRP' in fil_body:
+            maxMSRP = sanitizeNumber(fil_body['maxMSRP'])
+        if 'sku' in fil_body:
+            if 'gte' in fil_body['sku'] and fil_body['sku']['gte'] != '':
+                minSku = sanitizeNumber(int(fil_body['sku']['gte']))
+            if 'lte' in fil_body['sku'] and fil_body['sku']['lte'] != '':
+                maxSku = sanitizeNumber(int(fil_body['sku']['lte']))
         fil = {}
-        unpackInstockFilter(body['filter'], fil)
+        unpackInstockFilter(fil_body, fil)
     
     # construct itemsArr inside auction record
     # sort by mrsp
@@ -1260,6 +1273,7 @@ def createAuctionRecord(request: HttpRequest):
         minSku=minSku,
         maxSku=maxSku,
         itemLotStart=itemLotStart,
+        timeRange=timeRange
     )
     
     # create the auction record

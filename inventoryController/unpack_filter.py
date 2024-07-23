@@ -11,7 +11,6 @@ def unpackTimeRange(query_filter, fil, query_key, filter_name, t_format="%Y-%m-%
     # time range filter
     if query_key in query_filter:
         timeRange = query_filter[query_key]
-        print(f'time range: {timeRange}')
 
         selectValue = timeRange['selectValue'] if 'selectValue' in timeRange else ''
         if selectValue == 'today' or selectValue == 'yesterday':
@@ -132,7 +131,6 @@ def unpackQARecordFilter(query_filter, fil):
     # remove $and if no filter applied
     if fil['$and'] == []:
         del fil['$and']
-    print(f'unpack qa filter: {fil}')
     return fil
 
 # unpack instock inventory filter object passed in by frontend
@@ -198,5 +196,4 @@ def unpackInstockFilter(query_filter, fil):
     # $and cannot be empty
     if fil['$and'] == []:
         del fil['$and']
-    print(f'unpack instock filter: {fil}')
     return fil

@@ -141,20 +141,21 @@ def createUser(request: HttpRequest):
         body = decodeJSON(request.body)
         sanitizeUserInfoBody(body)
         lowercase_user_email = str(body['email']).lower()
-        newUser = User (
-            name=body['name'],
-            email=lowercase_user_email,
-            password=body['password'],
-            role=body['role'],
-            registrationDate=date.today().strftime(user_time_format),
-            userActive=True
-        )
     except:
         return Response('Invalid Body', status.HTTP_400_BAD_REQUEST)
     
     # register with firebase
     try:
         fb_res = auth.create_user(email=lowercase_user_email, password=body['password'])
+        newUser = User (
+            name=body['name'],
+            email=lowercase_user_email,
+            password=body['password'],
+            role=body['role'],
+            registrationDate=date.today().strftime(user_time_format),
+            userActive=True,
+            fid=fb_res.uid
+        )
     except:
         return Response('Firebase Error, Cannot Create User', status.HTTP_500_INTERNAL_SERVER_ERROR)
     
@@ -173,25 +174,20 @@ def createUser(request: HttpRequest):
 @api_view(['DELETE'])
 @permission_classes([IsSuperAdminPermission])
 def deleteUserById(request: HttpRequest):
-    # try:
-    # convert to BSON
-    body = decodeJSON(request.body)
-    uid = ObjectId(sanitizeString(body['id']))
-    fid = sanitizeString(body['fid'])
-    # except:
-    #     return Response('Invalid User ID', status.HTTP_400_BAD_REQUEST)
-    
+    try:
+        # convert to BSON
+        body = decodeJSON(request.body)
+        uid = ObjectId(sanitizeString(body['id']))
+        fid = sanitizeString(body['fid'])
+    except:
+        return Response('Invalid User ID', status.HTTP_400_BAD_REQUEST)
+
     # try delete user from db
     res = user_collection.delete_one({'_id': uid})
-    
     # if deleted from mongo DB, call firebase
     if res:
-        deleted = auth.delete_user(uid=fid)
-        if deleted:
-            return Response('User Deleted', status.HTTP_200_OK)
-        else:
-            return Response('Failed to Delete From Firebase', status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return Response('User Not Found', status.HTTP_404_NOT_FOUND)
+        auth.delete_user(uid=fid)
+    return Response('User Deleted', status.HTTP_200_OK)
 
 # update user information by id
 # id: string

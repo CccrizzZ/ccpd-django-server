@@ -17,15 +17,17 @@ class User(models.Model):
     role: models.CharField(max_length=20, validators=[MinLengthValidator(4, 'Role Invalid')], choices=ROLE_CHOISES)
     registrationDate: models.CharField(max_length=30, validators=[MinLengthValidator(8,'Registration date invalid')])
     userActive: models.BooleanField()
+    fid: models.CharField(max_length=90)
     
     # constructor input all info
-    def __init__(self, name, email, password, role, registrationDate, userActive ) -> None:
+    def __init__(self, name, email, password, role, registrationDate, userActive, fid) -> None:
         self.name = name
         self.email = email
         self.password = password
         self.role = role
         self.registrationDate = registrationDate
         self.userActive = userActive
+        self.fid = fid
         
     # return inventory sku
     def __str__(self) -> str:

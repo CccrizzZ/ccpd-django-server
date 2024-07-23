@@ -143,12 +143,13 @@ class AuctionRecord(models.Model):
     minSku: int = models.IntegerField()
     maxSku: int = models.IntegerField()
     itemLotStart = models.IntegerField()
+    timeRange = models.CharField(max_length=150)
 
     # excluded:
     # itemsArr: InstockItem[],
     # topRow: InstockItem[],
 
-    def __init__(self, lot, totalItems, openTime, closeTime, closed, title, description, minMSRP, maxMSRP, remainingResolved, minSku, maxSku, itemLotStart) -> None:
+    def __init__(self, lot, totalItems, openTime, closeTime, closed, title, description, minMSRP, maxMSRP, remainingResolved, minSku, maxSku, itemLotStart, timeRange) -> None:
         self.lot = lot
         self.totalItems = totalItems
         self.openTime = openTime
@@ -162,6 +163,7 @@ class AuctionRecord(models.Model):
         self.minSku = minSku
         self.maxSku = maxSku
         self.itemLotStart = itemLotStart
+        self.timeRange = timeRange
         
     # return inventory sku
     def __str__(self) -> str:
