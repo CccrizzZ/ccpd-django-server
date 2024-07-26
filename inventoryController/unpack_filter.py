@@ -6,8 +6,10 @@ from CCPDController.utils import (
 )
 from datetime import datetime, timedelta
 
+from userController import admin
+
 # 
-def unpackTimeRange(query_filter, fil, query_key, filter_name, t_format="%Y-%m-%dT%H:%M:%S.000Z"):
+def unpackTimeRange(query_filter, fil, query_key, filter_name, t_format="%Y-%m-%dT%H:%M:%S.000Z", admin_hour=0):
     # time range filter
     if query_key in query_filter:
         timeRange = query_filter[query_key]
@@ -40,7 +42,11 @@ def unpackTimeRange(query_filter, fil, query_key, filter_name, t_format="%Y-%m-%
             f = sanitizeString(timeRange['from']) if 'from' in timeRange else ''
 
             if f != '':
-                f = datetime.strptime(f, full_iso_format).strftime(t_format)
+                f = datetime.strptime(f, full_iso_format)
+                if admin_hour != 0:
+                    f = f.replace(hour=admin_hour).strftime(t_format)
+                else:
+                    f = f.strftime(t_format)
                 
             # selected only 1 day so range is from 0000 to 2359 of that day
             if 'to' not in timeRange and 'from' in timeRange:
@@ -109,9 +115,13 @@ def unpackQARecordFilter(query_filter, fil):
         sanitizeString(query_filter['conditionFilter'])
         fil['$and'].append({'itemCondition': query_filter['conditionFilter']})
     
-    if 'showRecordedOnly' in query_filter and query_filter['showRecordedOnly'] == True:
-        fil['$and'].append({'recorded': True})
-    
+    if 'showRecorded' in query_filter and query_filter['showRecorded'] != 'all':
+        if query_filter['showRecorded'] == 'recorded':
+            fil['$and'].append({'recorded': True})
+        elif query_filter['showRecorded'] =='notRecorded':
+            fil['$and'].append({'recorded': {'$exists': False}})
+
+
     unpackMarketPlaceFilter(query_filter, fil)
     unpackPlatformFilter(query_filter, fil)
     unpackTimeRange(query_filter, fil, 'timeRangeFilter', 'time')
@@ -185,10 +195,14 @@ def unpackInstockFilter(query_filter, fil):
             if msrpFilter['lt'] != '': 
                 fil['msrp']['$lt'] = float(msrpFilter['lt'])
     
+    # admin hours
+    if 'adminHour' in query_filter:
+        adminHour = query_filter['adminHour']
+    
     unpackPlatformFilter(query_filter, fil)
     unpackMarketPlaceFilter(query_filter, fil)
     unpackShelfLocation(query_filter, fil)
-    unpackTimeRange(query_filter, fil, 'timeRangeFilter', 'time')
+    unpackTimeRange(query_filter, fil, 'timeRangeFilter', 'time', admin_hour=adminHour)
     unpackTimeRange(query_filter, fil, 'qaTime', 'qaTime')
     unpackQAFilter(query_filter, fil, 'qaName')
     
